@@ -161,7 +161,7 @@ def check_and_send_booking_confirmations(supabase):
                     clinic_id = get_clinic_id_for_booking(booking, "clinic")
                     
                     # Check if notification already exists for this booking
-                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "confirm").execute()
+                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "general").execute()
                     if existing.data:
                         logger.info(translate_template(whatsapp_number, f"Notification already exists for booking {booking['id']}. Skipping.", supabase))
                         continue
@@ -221,7 +221,7 @@ def check_and_send_booking_confirmations(supabase):
                     clinic_id = get_clinic_id_for_booking(booking, "clinic")
                     
                     # Check if notification already exists for this booking
-                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "confirm").execute()
+                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "general").execute()
                     if existing.data:
                         logger.info(translate_template(whatsapp_number, f"Notification already exists for booking {booking['id']}. Skipping.", supabase))
                         continue
@@ -281,7 +281,7 @@ def check_and_send_booking_confirmations(supabase):
                     clinic_id = get_clinic_id_for_booking(booking, "clinic")
                     
                     # Check if notification already exists for this booking
-                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "confirm").execute()
+                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "general").execute()
                     if existing.data:
                         logger.info(translate_template(whatsapp_number, f"Notification already exists for booking {booking['id']}. Skipping.", supabase))
                         continue
@@ -351,7 +351,7 @@ def check_and_send_booking_confirmations(supabase):
                     # Check if notification already exists for this booking
                     case_id_to_check = repeated_visit_uuid if repeated_visit_uuid else booking["id"]
                     
-                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", case_id_to_check).eq("reminder_type", "confirm").execute()
+                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", case_id_to_check).eq("reminder_type", "general").execute()
                     if existing.data:
                         logger.info(translate_template(whatsapp_number, f"Notification already exists for TCM booking {booking['id']}. Skipping.", supabase))
                         continue
@@ -513,7 +513,7 @@ def send_immediate_booking_confirmations():
                         logger.error(f"Error getting clinic_id for TCM booking: {clinic_err}")
                     
                     # Check if notification already exists for this booking
-                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "confirm").execute()
+                    existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "general").execute()
                     if existing.data:
                         continue
                     
@@ -1602,3 +1602,4 @@ def check_and_send_ambulance_reminders(supabase):
         except Exception as e:
             logger.error(f"Failed to fetch from {table_name}: {e}", exc_info=True)
             continue
+

@@ -268,7 +268,23 @@ def check_distance_from_clinic(patient_lat, patient_lng):
     except Exception as e:
         logger.error(f"Error in distance check: {e}", exc_info=True)
         return True, 0, f"Distance check failed: {str(e)}"
-    
+
+def update_user_state(whatsapp_number: str, state: str, module: str, supabase=None):
+    """Update user state in database and local user_data."""
+    try:
+        # Update database
+        whatsapp_number_norm = whatsapp_number.lstrip('+')
+        supabase.table("whatsapp_users").update({
+            "state": state,
+            "module": module
+        }).eq("whatsapp_number", whatsapp_number_norm).execute()
+        
+        logger.info(f"Updated user {whatsapp_number} state to {state}, module {module}")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating user state: {e}")
+        return False
+
 # ----------------------------------------------------------------
 # ROUTING: Lookup Clinic by Keyword
 # ----------------------------------------------------------------
@@ -508,6 +524,7 @@ def geocode_address(address: str) -> dict:
         logger.error(f"Error in geocode_address for {address}: {e}")
         return None
 
+
 # ---------------------------------------------------------------------
 # UPDATED: send_notification_with_fallback - UPDATED FOR NEW REMINDER TYPES
 # ---------------------------------------------------------------------
@@ -517,8 +534,6 @@ def send_notification_with_fallback(to: str, message: str, reminder_type: str, s
     fall back to APPROPRIATE TEMPLATE based on reminder_type if it fails.
     
     Returns True if either method succeeds, False if both fail.
-    
-    UPDATED: Now handles dayc, weekc, customc, and a_day reminder types.
     """
     logger.info(f"Starting notification strategy for {to}, type: {reminder_type}")
     
@@ -532,6 +547,32 @@ def send_notification_with_fallback(to: str, message: str, reminder_type: str, s
             logger.info(f"Skipping duplicate notification for {to} (sent recently)")
             return True
     
+    # CRITICAL: Update user state in database BEFORE sending notification
+    try:
+        whatsapp_number_norm = to.lstrip('+').strip()
+        # Set state based on reminder_type
+        if reminder_type in ["customc", "cancel", "a_cancel"]:
+            state = "NOTIFICATION_MENU"
+            module = "notification"
+        elif reminder_type in ["dayc", "weekc", "a_day", "confirm", "reschedule", "transfer", "general"]:
+            state = "VIEW_BOOKING_SUBMENU"
+            module = "view_booking"
+        elif reminder_type in ["reportc"]:
+            state = "INDIVIDUAL_MENU"
+            module = "individual"
+        else:
+            state = "IDLE"
+            module = None
+        
+        # Update database
+        supabase.table("whatsapp_users").update({
+            "state": state,
+            "module": module
+        }).eq("whatsapp_number", whatsapp_number_norm).execute()
+        logger.info(f"Updated user state to {state}, module: {module} for notification type: {reminder_type}")
+    except Exception as e:
+        logger.error(f"Error updating user state for notification: {e}")
+    
     # STEP 1: Try FREE INTERACTIVE notification with header/footer/button first
     logger.info(f"Step 1: Sending FREE INTERACTIVE notification to {to}")
     
@@ -539,8 +580,22 @@ def send_notification_with_fallback(to: str, message: str, reminder_type: str, s
     translated_message = gt_tt(to, message, supabase)
     logger.info(f"Translated message ({get_user_language(supabase, to)}): {translated_message[:100]}...")
     
-    interactive_success = send_interactive_notification_with_header_footer_button(to, translated_message, supabase)
+    interactive_success = send_interactive_notification_with_header_footer_button(to, translated_message, reminder_type, supabase)
+
+    if interactive_success:
+        logger.info(f"FREE INTERACTIVE notification with header/footer/button strategy SUCCESS for {to}")
+        _last_notification_sent[notification_key] = now
+        return True
+        
+    # STEP 1: Try FREE INTERACTIVE notification with header/footer/button first
+    logger.info(f"Step 1: Sending FREE INTERACTIVE notification to {to}")
     
+    # Use gt_tt to translate the message based on user's language
+    translated_message = gt_tt(to, message, supabase)
+    logger.info(f"Translated message ({get_user_language(supabase, to)}): {translated_message[:100]}...")
+    
+    interactive_success = send_interactive_notification_with_header_footer_button(to, translated_message, reminder_type, supabase)
+
     if interactive_success:
         logger.info(f"FREE INTERACTIVE notification with header/footer/button strategy SUCCESS for {to}")
         _last_notification_sent[notification_key] = now
@@ -578,32 +633,83 @@ def send_notification_with_fallback(to: str, message: str, reminder_type: str, s
 # ---------------------------------------------------------------------
 # FUNCTION: send_interactive_notification_with_header_footer_button
 # ---------------------------------------------------------------------
-def send_interactive_notification_with_header_footer_button(to: str, message: str, supabase=None) -> bool:
+# utils.py - UPDATED FUNCTION
+
+def send_interactive_notification_with_header_footer_button(to: str, message: str, reminder_type: str = "general", supabase=None) -> bool:
     """
-    Send an interactive notification with header, footer, and "Noted" button.
-    Header: "AnyHealth - Clinic Appointment" (static)
-    Body: {message} (already translated via gt_tt)
-    Footer: "Stay Healthy, Effortlessly!" (static)
-    Button: "Noted" (translated based on user language)
+    Send interactive notification with header/footer and dynamic button based on reminder_type.
+    
+    Group A (Open Notifications): customc, cancel, a_cancel
+        Button ID: nav_notifications
+        Titles: English: Notification | Malay: Pemberitahuan | Chinese: 通知 | Tamil: அறிவிப்பு
+    
+    Group B (Open View Booking): dayc, weekc, a_day, confirm, reschedule, transfer, general
+        Button ID: nav_view_booking
+        Titles: English: View Booking | Malay: Lihat Tempahan | Chinese: 查看预约 | Tamil: முன்பதிவைப் பார்க்க
+    
+    Group C (Open Profile): reportc
+        Button ID: nav_profile
+        Titles: English: Profile | Malay: Profil | Chinese: 个人资料 | Tamil: சுயவிவரம்
+    
+    Default (Fallback): notification_noted
+        Titles: English: Noted | Malay: Faham | Chinese: 明白 | Tamil: குறிப்பிட்டார்
     """
     to = to.strip()
     if not to.startswith("+"):
         to = f"+{to}"
 
+    # Get user's language
+    language = get_user_language(supabase, to) if supabase else "en"
+    
+    # 1. Map reminder_type to button group - FIXED TO MATCH YOUR DESCRIPTION
+    button_id = "notification_noted"  # Default fallback
+    if reminder_type in ["customc", "cancel", "a_cancel"]:
+        button_id = "nav_notifications"
+    elif reminder_type in ["dayc", "weekc", "a_day", "confirm", "reschedule", "transfer", "general"]:
+        button_id = "nav_view_booking"
+    elif reminder_type in ["reportc"]:
+        button_id = "nav_profile"
+    else:
+        button_id = "notification_noted" # Default fallback
+    
+    # 2. Get button title based on language and button_id
+    button_titles = {
+        "nav_notifications": {
+            "en": "Notification",
+            "bm": "Pemberitahuan", 
+            "cn": "通知",
+            "tm": "அறிவிப்பு"
+        },
+        "nav_view_booking": {
+            "en": "View Booking",
+            "bm": "Lihat Tempahan",
+            "cn": "查看预约",
+            "tm": "முன்பதிவைப் பார்க்க"
+        },
+        "nav_profile": {
+            "en": "Profile",
+            "bm": "Profil",
+            "cn": "个人资料",
+            "tm": "சுயவிவரம்"
+        },
+        "notification_noted": {
+            "en": "Noted",
+            "bm": "Faham",
+            "cn": "明白",
+            "tm": "குறிப்பிட்டார்"
+        }
+    }
+    
+    # Get the title for the selected button_id and language
+    group_titles = button_titles.get(button_id, button_titles["notification_noted"])
+    button_title = group_titles.get(language, group_titles["en"])
+    
+  
+    # Prepare the payload
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
         "Content-Type": "application/json",
     }
-    
-    # Define button text based on language
-    language = get_user_language(supabase, to) if supabase else "en"
-    button_texts = {
-        "en": "Noted",
-        "cn": "明白", 
-        "bm": "Faham",
-        "tm": "குறிப்பிட்டார்"
-    }
-    button_title = button_texts.get(language, "Noted")
     
     payload = {
         "messaging_product": "whatsapp",
@@ -626,7 +732,7 @@ def send_interactive_notification_with_header_footer_button(to: str, message: st
                     {
                         "type": "reply",
                         "reply": {
-                            "id": "notification_noted",
+                            "id": button_id,
                             "title": button_title
                         }
                     }
@@ -636,13 +742,13 @@ def send_interactive_notification_with_header_footer_button(to: str, message: st
     }
 
     try:
-        logger.info(f"Attempting FREE INTERACTIVE notification with header/footer/button to {to}")
+        logger.info(f"Attempting FREE INTERACTIVE notification with dynamic button to {to}, type: {reminder_type}, button: {button_id}")
         
         response = requests.post(WHATSAPP_API_URL, headers=headers, json=payload)
         
         # Check if request was successful
         if response.status_code == 200:
-            logger.info(f"FREE INTERACTIVE notification with header/footer/button successfully sent to {to}.")
+            logger.info(f"FREE INTERACTIVE notification with dynamic button {button_id} successfully sent to {to}.")
             return True
             
         # Handle API errors
@@ -664,7 +770,6 @@ def send_interactive_notification_with_header_footer_button(to: str, message: st
     except Exception as e:
         logger.error(f"Error sending free interactive notification to {to}: {e}", exc_info=True)
         return False
-
 # ---------------------------------------------------------------------
 # FUNCTION: send_free_notification
 # ---------------------------------------------------------------------
@@ -1501,3 +1606,4 @@ def clear_user_cache(whatsapp_number: str, supabase) -> bool:
     except Exception as e:
         logger.error(f"Error clearing cache for {whatsapp_number}: {e}")
         return False
+

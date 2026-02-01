@@ -3,7 +3,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
-from utils import send_whatsapp_message, send_interactive_menu, get_user_id, translate_template, gt_t_tt, gt_tt, gt_dt_tt
+from utils import send_whatsapp_message, send_interactive_menu, get_user_id, translate_template, gt_t_tt
 from calendar_utils import (
     get_doctors, get_calendar, select_period, get_available_hours, 
     get_time_slots, handle_future_date_input, handle_future_date_confirmation,
@@ -205,13 +205,13 @@ def handle_booking_type_selection(whatsapp_number, user_id, supabase, user_data,
             
             if selected_type == "action_required":
                 selected_bookings = categories.get("action_required", [])
-                category_name = translate_template(whatsapp_number, "Action Required", supabase)
+                category_name = "Action Required"
             elif selected_type == "confirmed":
                 selected_bookings = categories.get("confirmed", [])
-                category_name = translate_template(whatsapp_number, "Confirmed", supabase)
+                category_name = "Confirmed"
             elif selected_type == "pending":
                 selected_bookings = categories.get("pending", [])
-                category_name = translate_template(whatsapp_number, "Pending", supabase)
+                category_name = "Pending"
             else:
                 logger.error(f"Invalid booking type selected: {selected_type}")
                 send_whatsapp_message(
@@ -259,7 +259,7 @@ def handle_booking_type_selection(whatsapp_number, user_id, supabase, user_data,
                                 {
                                     "id": b["id"],
                                     "title": translate_template(whatsapp_number, "Booking {}", supabase).format(i + 1),
-                                    "description": b['text']
+                                    "description": translate_template(whatsapp_number, b['text'][:72], supabase)
                                 } for i, b in enumerate(selected_bookings)
                             ][:10]
                         }]
@@ -408,9 +408,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                     booking_datetime = datetime.strptime(f"{c['date']} {c['time']}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone(timedelta(hours=8)))
                     if booking_datetime >= current_datetime:
                         dr_info = doctors_dict.get(str(c['doctor_id']), {"name": translate_template(whatsapp_number, "Unknown", supabase), "clinic_id": ""})
-                        dr_name = dr_info["name"]  # Doctor name stays in English
+                        dr_name = dr_info["name"]
                         clinic_name = clinics_dict.get(dr_info["clinic_id"], translate_template(whatsapp_number, "Unknown Clinic", supabase))
-                        details = gt_tt(whatsapp_number, c['details'] or 'N/A', supabase, doctor_name=dr_name)
+                        details = gt_t_tt(whatsapp_number, c['details'] or 'N/A', supabase, doctor_name=dr_name)
                         booking_str = translate_template(
                             whatsapp_number,
                             "Consultation with Dr. {} at {} on {} at {} (Symptoms: {})",
@@ -465,9 +465,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                     booking_datetime = datetime.strptime(f"{c['date']} {c['time']}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone(timedelta(hours=8)))
                     if booking_datetime >= current_datetime:
                         dr_info = doctors_dict.get(str(c['doctor_id']), {"name": translate_template(whatsapp_number, "Unknown", supabase), "clinic_id": ""})
-                        dr_name = dr_info["name"]  # Doctor name stays in English
+                        dr_name = dr_info["name"]
                         clinic_name = clinics_dict.get(dr_info["clinic_id"], translate_template(whatsapp_number, "Unknown Clinic", supabase))
-                        details = gt_tt(whatsapp_number, c['details'] or 'N/A', supabase, doctor_name=dr_name)
+                        details = gt_t_tt(whatsapp_number, c['details'] or 'N/A', supabase, doctor_name=dr_name)
                         booking_str = translate_template(
                             whatsapp_number,
                             "Checkup ({}) with Dr. {} at {} on {} at {}",
@@ -522,9 +522,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                     booking_datetime = datetime.strptime(f"{v['date']} {v['time']}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone(timedelta(hours=8)))
                     if booking_datetime >= current_datetime:
                         dr_info = doctors_dict.get(str(v['doctor_id']), {"name": translate_template(whatsapp_number, "Unknown", supabase), "clinic_id": ""})
-                        dr_name = dr_info["name"]  # Doctor name stays in English
+                        dr_name = dr_info["name"]
                         clinic_name = clinics_dict.get(dr_info["clinic_id"], translate_template(whatsapp_number, "Unknown Clinic", supabase))
-                        vaccine_type = gt_tt(whatsapp_number, v['vaccine_type'] or 'N/A', supabase, doctor_name=dr_name)
+                        vaccine_type = gt_t_tt(whatsapp_number, v['vaccine_type'] or 'N/A', supabase, doctor_name=dr_name)
                         booking_str = translate_template(
                             whatsapp_number,
                             "Vaccination ({}) with Dr. {} at {} on {} at {}",
@@ -579,9 +579,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                     booking_datetime = datetime.strptime(f"{p['date']} {p['time']}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone(timedelta(hours=8)))
                     if booking_datetime >= current_datetime:
                         dr_info = doctors_dict.get(str(p['doctor_id']), {"name": translate_template(whatsapp_number, "Unknown", supabase), "clinic_id": ""})
-                        dr_name = dr_info["name"]  # Doctor name stays in English
+                        dr_name = dr_info["name"]
                         clinic_name = clinics_dict.get(dr_info["clinic_id"], translate_template(whatsapp_number, "Unknown Clinic", supabase))
-                        details = gt_tt(whatsapp_number, p['details'] or p['vaccine_type'] or p['booking_type'] or 'N/A', supabase, doctor_name=dr_name)
+                        details = gt_t_tt(whatsapp_number, p['details'] or p['vaccine_type'] or p['booking_type'] or 'N/A', supabase, doctor_name=dr_name)
                         booking_type_translated = translate_template(whatsapp_number, p['booking_type'].capitalize(), supabase)
                         booking_str = translate_template(
                             whatsapp_number,
@@ -639,9 +639,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                     booking_datetime = datetime.strptime(f"{r['original_date']} {r['original_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone(timedelta(hours=8)))
                     if booking_datetime >= current_datetime:
                         dr_info = doctors_dict.get(str(r['doctor_id']), {"name": translate_template(whatsapp_number, "Unknown", supabase), "clinic_id": ""})
-                        dr_name = dr_info["name"]  # Doctor name stays in English
+                        dr_name = dr_info["name"]
                         clinic_name = clinics_dict.get(dr_info["clinic_id"], translate_template(whatsapp_number, "Unknown Clinic", supabase))
-                        details = gt_tt(whatsapp_number, r['details'] or r['vaccine_type'] or r['booking_type'] or 'N/A', supabase, doctor_name=dr_name)
+                        details = gt_t_tt(whatsapp_number, r['details'] or r['vaccine_type'] or r['booking_type'] or 'N/A', supabase, doctor_name=dr_name)
                         booking_type_translated = translate_template(whatsapp_number, r['booking_type'].capitalize(), supabase)
                         booking_str = translate_template(
                             whatsapp_number,
@@ -712,9 +712,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                         booking_datetime = datetime.strptime(f"{display_date} {display_time}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone(timedelta(hours=8)))
                         if booking_datetime >= current_datetime:
                             dr_info = tcm_doctors_dict.get(str(b['doctor_id']), {"name": translate_template(whatsapp_number, "Unknown TCM Doctor", supabase), "clinic_id": ""})
-                            dr_name = dr_info["name"]  # Doctor name stays in English
+                            dr_name = dr_info["name"]
                             clinic_name = tcm_clinics_dict.get(dr_info["clinic_id"], translate_template(whatsapp_number, "Unknown TCM Clinic", supabase))
-                            details = gt_tt(whatsapp_number, b['details'] or 'N/A', supabase, doctor_name=dr_name)
+                            details = gt_t_tt(whatsapp_number, b['details'] or 'N/A', supabase, doctor_name=dr_name)
                             booking_type_translated = translate_template(whatsapp_number, b['booking_type'].capitalize(), supabase)
                             
                             # Determine category based on status
@@ -772,7 +772,7 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                                 action_required.append(booking_data)
 
                             elif b['status'] == 'pending':
-                                prefix = translate_template(whatsapp_number, "Pending TCM", supabase)
+                                prefix = "Pending TCM"
                                 booking_str = translate_template(
                                     whatsapp_number,
                                     "{} {} with Dr. {} at {} on {} at {} (Details: {})",
@@ -810,7 +810,7 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                                 pending_bookings_raw.append(booking_data)
                                 
                             elif b['status'] == 'confirmed':
-                                prefix = translate_template(whatsapp_number, "TCM", supabase)
+                                prefix = "TCM"
                                 booking_str = translate_template(
                                     whatsapp_number,
                                     "{} {} with Dr. {} at {} on {} at {} (Details: {})",
@@ -884,9 +884,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                             
                             # Determine prefix based on status
                             if b['status'] in ['pending', 'scheduled']:
-                                prefix = translate_template(whatsapp_number, "Scheduled", supabase)
+                                prefix = "Scheduled"
                             else:
-                                prefix = translate_template(whatsapp_number, "Confirmed", supabase)
+                                prefix = "Confirmed"
                             
                             booking_str = translate_template(
                                 whatsapp_number,
@@ -960,9 +960,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                             
                             # Determine prefix based on status
                             if b['status'] in ['pending', 'scheduled']:
-                                prefix = translate_template(whatsapp_number, "Scheduled", supabase)
+                                prefix = "Scheduled"
                             else:
-                                prefix = translate_template(whatsapp_number, "Confirmed", supabase)
+                                prefix = "Confirmed"
                             
                             # Check if there's an appointment time
                             appointment_info = ""
@@ -1044,9 +1044,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                             
                             # Determine prefix based on status
                             if b['status'] in ['pending', 'scheduled']:
-                                prefix = translate_template(whatsapp_number, "Scheduled", supabase)
+                                prefix = "Scheduled"
                             else:
-                                prefix = translate_template(whatsapp_number, "Confirmed", supabase)
+                                prefix = "Confirmed"
                             
                             booking_str = translate_template(
                                 whatsapp_number,
@@ -1122,9 +1122,9 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
                             
                             # Determine prefix based on status
                             if b['status'] in ['pending', 'scheduled']:
-                                prefix = translate_template(whatsapp_number, "Scheduled", supabase)
+                                prefix = "Scheduled"
                             else:
-                                prefix = translate_template(whatsapp_number, "Confirmed", supabase)
+                                prefix = "Confirmed"
                             
                             booking_str = translate_template(
                                 whatsapp_number,
@@ -1182,13 +1182,13 @@ def handle_view_upcoming_booking(whatsapp_number, user_id, supabase, user_data):
             # Determine which category the single booking belongs to
             if processed_action_required:
                 selected_bookings = processed_action_required
-                category_name = translate_template(whatsapp_number, "Action Required", supabase)
+                category_name = "Action Required"
             elif confirmed_bookings:
                 selected_bookings = confirmed_bookings
-                category_name = translate_template(whatsapp_number, "Confirmed", supabase)
+                category_name = "Confirmed"
             else:
                 selected_bookings = pending_bookings_list
-                category_name = translate_template(whatsapp_number, "Pending", supabase)
+                category_name = "Pending"
             
             # Select the single booking
             selected_booking = selected_bookings[0]
@@ -1319,7 +1319,7 @@ def handle_booking_selection_for_reschedule_direct(whatsapp_number, user_id, sup
                             whatsapp_number,
                             "Selected: {}",
                             supabase
-                        ).format(selected_booking['text'])
+                        ).format(translate_template(whatsapp_number, selected_booking['text'], supabase))
                     },
                     "action": {
                         "buttons": [
@@ -1363,7 +1363,7 @@ def handle_booking_selection_for_reschedule_direct(whatsapp_number, user_id, sup
                             whatsapp_number,
                             "Selected: {}\n\nDoctor has requested to reschedule this appointment.",
                             supabase
-                        ).format(selected_booking['text'])
+                        ).format(translate_template(whatsapp_number, selected_booking['text'], supabase))
                     },
                     "action": {
                         "buttons": [
@@ -1406,7 +1406,7 @@ def handle_booking_selection_for_reschedule_direct(whatsapp_number, user_id, sup
                             whatsapp_number,
                             "Selected: {}\n\nAmbulance bookings cannot be modified via WhatsApp. Please contact the ambulance service directly for any changes.",
                             supabase
-                        ).format(selected_booking['text'])
+                        ).format(translate_template(whatsapp_number, selected_booking['text'], supabase))
                     },
                     "action": {
                         "buttons": [
@@ -1434,7 +1434,7 @@ def handle_booking_selection_for_reschedule_direct(whatsapp_number, user_id, sup
                             whatsapp_number,
                             "Selected: {}",
                             supabase
-                        ).format(selected_booking['text'])
+                        ).format(translate_template(whatsapp_number, selected_booking['text'], supabase))
                     },
                     "action": {
                         "buttons": [
@@ -1537,7 +1537,7 @@ def handle_booking_selection_for_reschedule(whatsapp_number, user_id, supabase, 
                                 whatsapp_number,
                                 "Selected: {}",
                                 supabase
-                            ).format(selected_booking['text'])
+                            ).format(translate_template(whatsapp_number, selected_booking['text'], supabase))
                         },
                         "action": {
                             "buttons": [
@@ -1581,7 +1581,7 @@ def handle_booking_selection_for_reschedule(whatsapp_number, user_id, supabase, 
                                 whatsapp_number,
                                 "Selected: {}\n\nDoctor has requested to reschedule this appointment.",
                                 supabase
-                            ).format(selected_booking['text'])
+                            ).format(translate_template(whatsapp_number, selected_booking['text'], supabase))
                         },
                         "action": {
                             "buttons": [
@@ -1624,7 +1624,7 @@ def handle_booking_selection_for_reschedule(whatsapp_number, user_id, supabase, 
                                 whatsapp_number,
                                 "Selected: {}\n\nAmbulance bookings cannot be modified via WhatsApp. Please contact the ambulance service directly for any changes.",
                                 supabase
-                            ).format(selected_booking['text'])
+                            ).format(translate_template(whatsapp_number, selected_booking['text'], supabase))
                         },
                         "action": {
                             "buttons": [
@@ -1652,7 +1652,7 @@ def handle_booking_selection_for_reschedule(whatsapp_number, user_id, supabase, 
                                 whatsapp_number,
                                 "Selected: {}",
                                 supabase
-                            ).format(selected_booking['text'])
+                            ).format(translate_template(whatsapp_number, selected_booking['text'], supabase))
                         },
                         "action": {
                             "buttons": [
@@ -2137,7 +2137,7 @@ def handle_accept_tcm_reschedule(whatsapp_number, user_id, supabase, user_data, 
         
         supabase.table("tcm_s_bookings").update(update_data).eq("id", booking_id).execute()
         
-        # Get doctor name for success message (stays in English)
+        # Get doctor name for success message
         try:
             doctor_response = supabase.table("tcm_a_doctors").select("name").eq("id", data["doctor_id"]).execute().data
             doctor_name = doctor_response[0]["name"] if doctor_response else "TCM Doctor"
@@ -2197,7 +2197,7 @@ def handle_decline_tcm_reschedule(whatsapp_number, user_id, supabase, user_data,
         
         if booking_data:
             data = booking_data[0]
-            # Get doctor name (stays in English)
+            # Get doctor name
             try:
                 doctor_response = supabase.table("tcm_a_doctors").select("name").eq("id", data["doctor_id"]).execute().data
                 doctor_name = doctor_response[0]["name"] if doctor_response else "TCM Doctor"
@@ -2434,7 +2434,7 @@ def handle_repeated_reschedule_confirmation(whatsapp_number, user_id, supabase, 
                                 whatsapp_number,
                                 "Selected: {}",
                                 supabase
-                            ).format(selected_booking.get('text', ''))
+                            ).format(translate_template(whatsapp_number, selected_booking.get('text', ''), supabase))
                         },
                         "action": {
                             "buttons": [
@@ -2520,7 +2520,7 @@ def handle_repeated_cancellation_confirmation(whatsapp_number, user_id, supabase
                                 whatsapp_number,
                                 "Selected: {}",
                                 supabase
-                            ).format(selected_booking.get('text', ''))
+                            ).format(translate_template(whatsapp_number, selected_booking.get('text', ''), supabase))
                         },
                         "action": {
                             "buttons": [
@@ -2949,7 +2949,7 @@ def handle_reschedule_flow(whatsapp_number, user_id, supabase, user_data, messag
 def confirm_reschedule_booking(whatsapp_number, user_id, supabase, user_data):
     """Confirm reschedule booking with user."""
     try:
-        # Get doctor name (stays in English)
+        # Get doctor name
         doctor_id = user_data[whatsapp_number].get("doctor_id")
         is_tcm = user_data[whatsapp_number].get("is_tcm", False)
         any_doctor = user_data[whatsapp_number].get("any_doctor", False)
@@ -3247,7 +3247,7 @@ def save_reschedule_to_database(whatsapp_number, user_id, supabase, user_data):
         # Delete original booking (from confirmed or pending tables)
         supabase.table(table_name).delete().eq("id", original_id).execute()
         
-        # Get doctor name for success message (stays in English)
+        # Get doctor name for success message
         try:
             doctor_response = supabase.table("c_a_doctors").select("name").eq("id", pending_booking_data["doctor_id"]).execute().data
             doctor_name = doctor_response[0]["name"] if doctor_response else "Doctor"
@@ -3345,7 +3345,7 @@ def save_tcm_reschedule_to_database(whatsapp_number, user_id, supabase, user_dat
         # Update the TCM booking - only affect original_date, original_time, status, and possibly service_id
         supabase.table("tcm_s_bookings").update(update_data).eq("id", original_id).execute()
         
-        # Get doctor name for success message (stays in English)
+        # Get doctor name for success message
         try:
             # Get the current doctor_id from the database to display the name
             tcm_booking_response = supabase.table("tcm_s_bookings").select("doctor_id").eq("id", original_id).execute().data
@@ -3422,7 +3422,7 @@ def handle_tcm_booking_confirmation(whatsapp_number, user_id, supabase, user_dat
                         
                         if tcm_booking_response:
                             booking = tcm_booking_response[0]
-                            # Get doctor name (stays in English)
+                            # Get doctor name
                             try:
                                 doctor_response = supabase.table("tcm_a_doctors").select("name").eq("id", booking["doctor_id"]).execute().data
                                 doctor_name = doctor_response[0]["name"] if doctor_response else "TCM Doctor"
@@ -3586,3 +3586,4 @@ def handle_view_booking(whatsapp_number, user_id, supabase, user_data, message):
         user_data[whatsapp_number] = {"state": "IDLE", "module": None}
         send_interactive_menu(whatsapp_number, supabase)
         return False
+
