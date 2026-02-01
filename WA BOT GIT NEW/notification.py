@@ -50,15 +50,13 @@ def insert_notification(whatsapp_number, case_id, message, user_id, reminder_typ
             if existing_check.data:
                 for existing in existing_check.data:
                     if existing.get("sent") == True:
-                        logger.info(translate_template("+1234567890", "Notification already sent for user {user_id}, case {case_id}, type {reminder_type}. Skipping.", supabase).format(
-                            user_id=user_id, case_id=case_id, reminder_type=reminder_type))
+                        logger.info(f"Notification already sent for user {user_id}, case {case_id}, type {reminder_type}. Skipping.")
                         return {"data": [{"id": existing["id"]}]}
                     else:
-                        logger.info(translate_template("+1234567890", "Notification exists but not sent. Will send: user {user_id}, case {case_id}, type {reminder_type}", supabase).format(
-                            user_id=user_id, case_id=case_id, reminder_type=reminder_type))
+                        logger.info(f"Notification exists but not sent. Will send: user {user_id}, case {case_id}, type {reminder_type}")
                         return {"data": [{"id": existing["id"]}]}
         except Exception as check_error:
-            logger.warning(translate_template("+1234567890", "Error checking existing notification: {check_error}", supabase).format(check_error=str(check_error)))
+            logger.warning(f"Error checking existing notification: {check_error}")
         
         # If no duplicate found, proceed with insertion
         data = {
@@ -77,22 +75,18 @@ def insert_notification(whatsapp_number, case_id, message, user_id, reminder_typ
             "clinic_id": clinic_id
         }
 
-        logger.info(translate_template("+1234567890", "Inserting notification: user_id={user_id}, case_id={case_id}, reminder_type={reminder_type}, provider_cat={provider_cat}, clinic_id={clinic_id}", supabase).format(
-            user_id=user_id, case_id=case_id, reminder_type=reminder_type, provider_cat=provider_cat, clinic_id=clinic_id))
+        logger.info(f"Inserting notification: user_id={user_id}, case_id={case_id}, reminder_type={reminder_type}, provider_cat={provider_cat}, clinic_id={clinic_id}")
 
         response = supabase.table("c_notifications").insert(data).execute()
-        logger.info(translate_template("+1234567890", "Successfully inserted notification for user {user_id}, case {case_id}, type {reminder_type}", supabase).format(
-            user_id=user_id, case_id=case_id, reminder_type=reminder_type))
+        logger.info(f"Successfully inserted notification for user {user_id}, case {case_id}, type {reminder_type}")
         return response
 
     except Exception as e:
         if "unique_notification" in str(e).lower() or "duplicate key" in str(e).lower() or "409" in str(e):
-            logger.debug(translate_template("+1234567890", "Duplicate notification skipped (user {user_id}, case {case_id}, type {reminder_type})", supabase).format(
-                user_id=user_id, case_id=case_id, reminder_type=reminder_type))
+            logger.debug(f"Duplicate notification skipped (user {user_id}, case {case_id}, type {reminder_type})")
             return {"data": [{"id": "duplicate_" + str(uuid.uuid4())}]}
         else:
-            logger.error(translate_template("+1234567890", "Error inserting notification for user {user_id}, case {case_id}: {error}", supabase).format(
-                user_id=user_id, case_id=case_id, error=str(e)), exc_info=True)
+            logger.error(f"Error inserting notification for user {user_id}, case {case_id}: {e}", exc_info=True)
         return None
 
 def get_clinic_id_for_booking(booking, provider_cat):
@@ -120,7 +114,7 @@ def get_clinic_id_for_booking(booking, provider_cat):
                 clinic_id = doctor_resp.data[0]["clinic_id"]
                 
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Error getting clinic_id for booking: {error}", supabase).format(error=str(e)))
+        logger.error(f"Error getting clinic_id for booking: {e}")
     
     return clinic_id
 
@@ -145,7 +139,7 @@ def check_and_send_booking_confirmations(supabase):
                 "id, user_id, date, time, details, repeated_visit_uuid, created_at, doctor_id"
             ).gte("created_at", one_hour_ago).execute()
             
-            logger.info(translate_template("+1234567890", "Found {count} new bookings in c_s_checkup", supabase).format(count=len(checkup_resp.data or [])))
+            logger.info(translate_template("+1234567890", f"Found {len(checkup_resp.data or [])} new bookings in c_s_checkup", supabase))
             
             for booking in checkup_resp.data or []:
                 try:
@@ -155,12 +149,12 @@ def check_and_send_booking_confirmations(supabase):
                     # Get user's WhatsApp number
                     user_resp = supabase.table("whatsapp_users").select("whatsapp_number").eq("id", user_id).execute()
                     if not user_resp.data:
-                        logger.error(translate_template("+1234567890", "No user found for user_id {user_id}", supabase).format(user_id=user_id))
+                        logger.error(translate_template("+1234567890", f"No user found for user_id {user_id}", supabase))
                         continue
                         
                     whatsapp_number = user_resp.data[0].get("whatsapp_number", "").lstrip('+')
                     if not whatsapp_number:
-                        logger.error(translate_template("+1234567890", "No WhatsApp number for user_id {user_id}", supabase).format(user_id=user_id))
+                        logger.error(translate_template("+1234567890", f"No WhatsApp number for user_id {user_id}", supabase))
                         continue
                     
                     # Get clinic_id for clinic booking
@@ -169,7 +163,7 @@ def check_and_send_booking_confirmations(supabase):
                     # Check if notification already exists for this booking
                     existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "confirm").execute()
                     if existing.data:
-                        logger.info(translate_template(whatsapp_number, "Notification already exists for booking {booking_id}. Skipping.", supabase).format(booking_id=booking['id']))
+                        logger.info(translate_template(whatsapp_number, f"Notification already exists for booking {booking['id']}. Skipping.", supabase))
                         continue
                     
                     # Single booking - create individual notification
@@ -190,16 +184,14 @@ def check_and_send_booking_confirmations(supabase):
                         provider_cat="clinic",
                         clinic_id=clinic_id
                     )
-                    logger.info(translate_template(whatsapp_number, "Created single checkup notification for {whatsapp_number}, booking {booking_id}", supabase).format(
-                        whatsapp_number=whatsapp_number, booking_id=booking['id']))
+                    logger.info(translate_template(whatsapp_number, f"Created single checkup notification for {whatsapp_number}, booking {booking['id']}", supabase))
                         
                 except Exception as e:
-                    logger.error(translate_template("+1234567890", "Error processing checkup booking {booking_id}: {error}", supabase).format(
-                        booking_id=booking.get('id'), error=str(e)), exc_info=True)
+                    logger.error(translate_template("+1234567890", f"Error processing checkup booking {booking.get('id')}: {e}", supabase), exc_info=True)
                     continue
                     
         except Exception as e:
-            logger.error(translate_template("+1234567890", "Error fetching from c_s_checkup: {error}", supabase).format(error=str(e)), exc_info=True)
+            logger.error(translate_template("+1234567890", f"Error fetching from c_s_checkup: {e}", supabase), exc_info=True)
         
         # Check consultation bookings - UPDATED with doctor_id
         try:
@@ -207,7 +199,7 @@ def check_and_send_booking_confirmations(supabase):
                 "id, user_id, date, time, details, repeated_visit_uuid, created_at, doctor_id"
             ).gte("created_at", one_hour_ago).execute()
             
-            logger.info(translate_template("+1234567890", "Found {count} new bookings in c_s_consultation", supabase).format(count=len(consultation_resp.data or [])))
+            logger.info(translate_template("+1234567890", f"Found {len(consultation_resp.data or [])} new bookings in c_s_consultation", supabase))
             
             for booking in consultation_resp.data or []:
                 try:
@@ -217,12 +209,12 @@ def check_and_send_booking_confirmations(supabase):
                     # Get user's WhatsApp number
                     user_resp = supabase.table("whatsapp_users").select("whatsapp_number").eq("id", user_id).execute()
                     if not user_resp.data:
-                        logger.error(translate_template("+1234567890", "No user found for user_id {user_id}", supabase).format(user_id=user_id))
+                        logger.error(translate_template("+1234567890", f"No user found for user_id {user_id}", supabase))
                         continue
                         
                     whatsapp_number = user_resp.data[0].get("whatsapp_number", "").lstrip('+')
                     if not whatsapp_number:
-                        logger.error(translate_template("+1234567890", "No WhatsApp number for user_id {user_id}", supabase).format(user_id=user_id))
+                        logger.error(translate_template("+1234567890", f"No WhatsApp number for user_id {user_id}", supabase))
                         continue
                     
                     # Get clinic_id for clinic booking
@@ -231,7 +223,7 @@ def check_and_send_booking_confirmations(supabase):
                     # Check if notification already exists for this booking
                     existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "confirm").execute()
                     if existing.data:
-                        logger.info(translate_template(whatsapp_number, "Notification already exists for booking {booking_id}. Skipping.", supabase).format(booking_id=booking['id']))
+                        logger.info(translate_template(whatsapp_number, f"Notification already exists for booking {booking['id']}. Skipping.", supabase))
                         continue
                     
                     # Single booking - create individual notification
@@ -252,16 +244,14 @@ def check_and_send_booking_confirmations(supabase):
                         provider_cat="clinic",
                         clinic_id=clinic_id
                     )
-                    logger.info(translate_template(whatsapp_number, "Created single consultation notification for {whatsapp_number}, booking {booking_id}", supabase).format(
-                        whatsapp_number=whatsapp_number, booking_id=booking['id']))
+                    logger.info(translate_template(whatsapp_number, f"Created single consultation notification for {whatsapp_number}, booking {booking['id']}", supabase))
                         
                 except Exception as e:
-                    logger.error(translate_template("+1234567890", "Error processing consultation booking {booking_id}: {error}", supabase).format(
-                        booking_id=booking.get('id'), error=str(e)), exc_info=True)
+                    logger.error(translate_template("+1234567890", f"Error processing consultation booking {booking.get('id')}: {e}", supabase), exc_info=True)
                     continue
                     
         except Exception as e:
-            logger.error(translate_template("+1234567890", "Error fetching from c_s_consultation: {error}", supabase).format(error=str(e)), exc_info=True)
+            logger.error(translate_template("+1234567890", f"Error fetching from c_s_consultation: {e}", supabase), exc_info=True)
         
         # Check vaccination bookings (USING vaccine_type INSTEAD OF details) - UPDATED with doctor_id
         try:
@@ -269,7 +259,7 @@ def check_and_send_booking_confirmations(supabase):
                 "id, user_id, date, time, vaccine_type, repeated_visit_uuid, created_at, doctor_id"
             ).gte("created_at", one_hour_ago).execute()
             
-            logger.info(translate_template("+1234567890", "Found {count} new bookings in c_s_vaccination", supabase).format(count=len(vaccination_resp.data or [])))
+            logger.info(translate_template("+1234567890", f"Found {len(vaccination_resp.data or [])} new bookings in c_s_vaccination", supabase))
             
             for booking in vaccination_resp.data or []:
                 try:
@@ -279,12 +269,12 @@ def check_and_send_booking_confirmations(supabase):
                     # Get user's WhatsApp number
                     user_resp = supabase.table("whatsapp_users").select("whatsapp_number").eq("id", user_id).execute()
                     if not user_resp.data:
-                        logger.error(translate_template("+1234567890", "No user found for user_id {user_id}", supabase).format(user_id=user_id))
+                        logger.error(translate_template("+1234567890", f"No user found for user_id {user_id}", supabase))
                         continue
                         
                     whatsapp_number = user_resp.data[0].get("whatsapp_number", "").lstrip('+')
                     if not whatsapp_number:
-                        logger.error(translate_template("+1234567890", "No WhatsApp number for user_id {user_id}", supabase).format(user_id=user_id))
+                        logger.error(translate_template("+1234567890", f"No WhatsApp number for user_id {user_id}", supabase))
                         continue
                     
                     # Get clinic_id for clinic booking
@@ -293,7 +283,7 @@ def check_and_send_booking_confirmations(supabase):
                     # Check if notification already exists for this booking
                     existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "confirm").execute()
                     if existing.data:
-                        logger.info(translate_template(whatsapp_number, "Notification already exists for booking {booking_id}. Skipping.", supabase).format(booking_id=booking['id']))
+                        logger.info(translate_template(whatsapp_number, f"Notification already exists for booking {booking['id']}. Skipping.", supabase))
                         continue
                     
                     # Single booking - create individual notification
@@ -314,16 +304,14 @@ def check_and_send_booking_confirmations(supabase):
                         provider_cat="clinic",
                         clinic_id=clinic_id
                     )
-                    logger.info(translate_template(whatsapp_number, "Created single vaccination notification for {whatsapp_number}, booking {booking_id}", supabase).format(
-                        whatsapp_number=whatsapp_number, booking_id=booking['id']))
+                    logger.info(translate_template(whatsapp_number, f"Created single vaccination notification for {whatsapp_number}, booking {booking['id']}", supabase))
                         
                 except Exception as e:
-                    logger.error(translate_template("+1234567890", "Error processing vaccination booking {booking_id}: {error}", supabase).format(
-                        booking_id=booking.get('id'), error=str(e)), exc_info=True)
+                    logger.error(translate_template("+1234567890", f"Error processing vaccination booking {booking.get('id')}: {e}", supabase), exc_info=True)
                     continue
                     
         except Exception as e:
-            logger.error(translate_template("+1234567890", "Error fetching from c_s_vaccination: {error}", supabase).format(error=str(e)), exc_info=True)
+            logger.error(translate_template("+1234567890", f"Error fetching from c_s_vaccination: {e}", supabase), exc_info=True)
 
         # Check TCM bookings
         try:
@@ -331,7 +319,7 @@ def check_and_send_booking_confirmations(supabase):
                 "id, user_id, original_date, original_time, new_date, new_time, booking_type, details, repeated_visit_uuid, created_at, status, doctor_id"
             ).gte("created_at", one_hour_ago).eq("status", "confirmed").execute()
             
-            logger.info(translate_template("+1234567890", "Found {count} new TCM bookings", supabase).format(count=len(tcm_resp.data or [])))
+            logger.info(translate_template("+1234567890", f"Found {len(tcm_resp.data or [])} new TCM bookings", supabase))
             
             for booking in tcm_resp.data or []:
                 try:
@@ -341,12 +329,12 @@ def check_and_send_booking_confirmations(supabase):
                     # Get user's WhatsApp number
                     user_resp = supabase.table("whatsapp_users").select("whatsapp_number").eq("id", user_id).execute()
                     if not user_resp.data:
-                        logger.error(translate_template("+1234567890", "No user found for user_id {user_id}", supabase).format(user_id=user_id))
+                        logger.error(translate_template("+1234567890", f"No user found for user_id {user_id}", supabase))
                         continue
                         
                     whatsapp_number = user_resp.data[0].get("whatsapp_number", "").lstrip('+')
                     if not whatsapp_number:
-                        logger.error(translate_template("+1234567890", "No WhatsApp number for user_id {user_id}", supabase).format(user_id=user_id))
+                        logger.error(translate_template("+1234567890", f"No WhatsApp number for user_id {user_id}", supabase))
                         continue
                     
                     # Get clinic_id for TCM booking (from doctor to clinic relationship)
@@ -358,14 +346,14 @@ def check_and_send_booking_confirmations(supabase):
                             if doctor_resp.data and doctor_resp.data[0].get("clinic_id"):
                                 clinic_id = doctor_resp.data[0]["clinic_id"]
                     except Exception as clinic_err:
-                        logger.error(translate_template("+1234567890", "Error getting clinic_id for TCM booking: {error}", supabase).format(error=str(clinic_err)))
+                        logger.error(f"Error getting clinic_id for TCM booking: {clinic_err}")
                     
                     # Check if notification already exists for this booking
                     case_id_to_check = repeated_visit_uuid if repeated_visit_uuid else booking["id"]
                     
                     existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", case_id_to_check).eq("reminder_type", "confirm").execute()
                     if existing.data:
-                        logger.info(translate_template(whatsapp_number, "Notification already exists for TCM booking {booking_id}. Skipping.", supabase).format(booking_id=booking['id']))
+                        logger.info(translate_template(whatsapp_number, f"Notification already exists for TCM booking {booking['id']}. Skipping.", supabase))
                         continue
                     
                     # Get appointment date and time (use new if available, otherwise original)
@@ -387,18 +375,16 @@ def check_and_send_booking_confirmations(supabase):
                         provider_cat="tcm",
                         clinic_id=clinic_id
                     )
-                    logger.info(translate_template(whatsapp_number, "Created single TCM notification for {whatsapp_number}, booking {booking_id}", supabase).format(
-                        whatsapp_number=whatsapp_number, booking_id=booking['id']))
+                    logger.info(translate_template(whatsapp_number, f"Created single TCM notification for {whatsapp_number}, booking {booking['id']}", supabase))
                         
                 except Exception as e:
-                    logger.error(translate_template("+1234567890", "Error processing TCM booking {booking_id}: {error}", supabase).format(
-                        booking_id=booking.get('id'), error=str(e)), exc_info=True)
+                    logger.error(translate_template("+1234567890", f"Error processing TCM booking {booking.get('id')}: {e}", supabase), exc_info=True)
                     continue
                     
         except Exception as e:
-            logger.error(translate_template("+1234567890", "Error fetching from tcm_s_bookings: {error}", supabase).format(error=str(e)), exc_info=True)
+            logger.error(translate_template("+1234567890", f"Error fetching from tcm_s_bookings: {e}", supabase), exc_info=True)
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Error fetching from tcm_s_bookings: {error}", supabase).format(error=str(e)), exc_info=True)
+        logger.error(translate_template("+1234567890", f"Error fetching from tcm_s_bookings: {e}", supabase), exc_info=True)
 
 # -------------------------
 # NEW: Check and send ambulance notifications for a_day reminder_type
@@ -429,8 +415,7 @@ def check_and_send_ambulance_notifications(supabase):
                     "id, whatsapp_number, patient_name, scheduled_date, scheduled_time, provider_id, created_at"
                 ).gte("created_at", one_hour_ago).execute()
                 
-                logger.info(translate_template("+1234567890", "Found {count} new bookings in {table_name}", supabase).format(
-                    count=len(resp.data or []), table_name=table_name))
+                logger.info(translate_template("+1234567890", f"Found {len(resp.data or [])} new bookings in {table_name}", supabase))
                 
                 for booking in resp.data or []:
                     try:
@@ -441,8 +426,7 @@ def check_and_send_ambulance_notifications(supabase):
                         # Get user ID from whatsapp_users table
                         user_resp = supabase.table("whatsapp_users").select("id").eq("whatsapp_number", whatsapp_number).execute()
                         if not user_resp.data:
-                            logger.error(translate_template(whatsapp_number, "No user found for WhatsApp number {whatsapp_number}", supabase).format(
-                                whatsapp_number=whatsapp_number))
+                            logger.error(translate_template(whatsapp_number, f"No user found for WhatsApp number {whatsapp_number}", supabase))
                             continue
                         
                         user_id = user_resp.data[0]["id"]
@@ -451,8 +435,7 @@ def check_and_send_ambulance_notifications(supabase):
                         # Check if notification already exists
                         existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", case_id).eq("reminder_type", "a_day").execute()
                         if existing.data:
-                            logger.info(translate_template(whatsapp_number, "Notification already exists for ambulance booking {case_id}. Skipping.", supabase).format(
-                                case_id=case_id))
+                            logger.info(translate_template(whatsapp_number, f"Notification already exists for ambulance booking {case_id}. Skipping.", supabase))
                             continue
                         
                         # Create notification message
@@ -460,7 +443,7 @@ def check_and_send_ambulance_notifications(supabase):
                         scheduled_date = booking.get("scheduled_date", "N/A")
                         scheduled_time = booking.get("scheduled_time", "N/A")
                         
-                        notification_msg = gt_tt(whatsapp_number, f"Your {service_type} for {patient_name} is scheduled on ", supabase) + f"{scheduled_date} at {scheduled_time}."
+                        notification_msg = f"Your {service_type} for {patient_name} is scheduled on {scheduled_date} at {scheduled_time}."
                         
                         # Insert notification with a_day reminder_type
                         insert_notification(
@@ -472,21 +455,18 @@ def check_and_send_ambulance_notifications(supabase):
                             provider_cat="ambulance",
                             clinic_id=None
                         )
-                        logger.info(translate_template(whatsapp_number, "Created a_day notification for {whatsapp_number}, booking {case_id}", supabase).format(
-                            whatsapp_number=whatsapp_number, case_id=case_id))
+                        logger.info(translate_template(whatsapp_number, f"Created a_day notification for {whatsapp_number}, booking {case_id}", supabase))
                         
                     except Exception as e:
-                        logger.error(translate_template("+1234567890", "Error processing ambulance booking {booking_id} from {table_name}: {error}", supabase).format(
-                            booking_id=booking.get('id'), table_name=table_name, error=str(e)), exc_info=True)
+                        logger.error(translate_template("+1234567890", f"Error processing ambulance booking {booking.get('id')} from {table_name}: {e}", supabase), exc_info=True)
                         continue
                         
             except Exception as e:
-                logger.error(translate_template("+1234567890", "Error fetching from {table_name}: {error}", supabase).format(
-                    table_name=table_name, error=str(e)), exc_info=True)
+                logger.error(translate_template("+1234567890", f"Error fetching from {table_name}: {e}", supabase), exc_info=True)
                 continue
                 
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Error in check_and_send_ambulance_notifications: {error}", supabase).format(error=str(e)), exc_info=True)
+        logger.error(translate_template("+1234567890", f"Error in check_and_send_ambulance_notifications: {e}", supabase), exc_info=True)
 
 # -------------------------
 # Immediate booking confirmations (for startup)
@@ -507,8 +487,7 @@ def send_immediate_booking_confirmations():
                 "id, user_id, original_date, original_time, new_date, new_time, booking_type, details, repeated_visit_uuid, created_at, status, doctor_id"
             ).gte("created_at", twenty_four_hours_ago).eq("status", "confirmed").execute()
             
-            logger.info(translate_template("+1234567890", "Found {count} TCM bookings from last 24 hours", supabase).format(
-                count=len(tcm_resp.data or [])))
+            logger.info(translate_template("+1234567890", f"Found {len(tcm_resp.data or [])} TCM bookings from last 24 hours", supabase))
             
             for booking in tcm_resp.data or []:
                 try:
@@ -531,7 +510,7 @@ def send_immediate_booking_confirmations():
                             if doctor_resp.data and doctor_resp.data[0].get("clinic_id"):
                                 clinic_id = doctor_resp.data[0]["clinic_id"]
                     except Exception as clinic_err:
-                        logger.error(translate_template("+1234567890", "Error getting clinic_id for TCM booking: {error}", supabase).format(error=str(clinic_err)))
+                        logger.error(f"Error getting clinic_id for TCM booking: {clinic_err}")
                     
                     # Check if notification already exists for this booking
                     existing = supabase.table("c_notifications").select("id").eq("user_id", user_id).eq("case_id", booking["id"]).eq("reminder_type", "confirm").execute()
@@ -556,23 +535,21 @@ def send_immediate_booking_confirmations():
                         provider_cat="tcm",
                         clinic_id=clinic_id
                     )
-                    logger.info(translate_template(whatsapp_number, "Created immediate TCM notification for {whatsapp_number}, booking {booking_id}", supabase).format(
-                        whatsapp_number=whatsapp_number, booking_id=booking['id']))
+                    logger.info(translate_template(whatsapp_number, f"Created immediate TCM notification for {whatsapp_number}, booking {booking['id']}", supabase))
                         
                 except Exception as e:
-                    logger.error(translate_template("+1234567890", "Error processing immediate TCM booking {booking_id}: {error}", supabase).format(
-                        booking_id=booking.get('id'), error=str(e)))
+                    logger.error(translate_template("+1234567890", f"Error processing immediate TCM booking {booking.get('id')}: {e}", supabase))
                     continue
                     
         except Exception as e:
-            logger.error(translate_template("+1234567890", "Error in immediate TCM confirmations: {error}", supabase).format(error=str(e)))
+            logger.error(translate_template("+1234567890", f"Error in immediate TCM confirmations: {e}", supabase))
             
         # Also check ambulance bookings from last 24 hours
         logger.info(translate_template("+1234567890", "=== Running immediate ambulance notifications ===", supabase))
         check_and_send_ambulance_notifications(supabase)
             
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Error in send_immediate_booking_confirmations: {error}", supabase).format(error=str(e)), exc_info=True)
+        logger.error(translate_template("+1234567890", f"Error in send_immediate_booking_confirmations: {e}", supabase), exc_info=True)
 
 # notification.py - UPDATED process_notifications function
 
@@ -590,8 +567,7 @@ def process_notifications(supabase):
                 "id, user_id, whatsapp_number, notification, time, reminder_type, case_id, sent, provider_cat, clinic_id"
             ).eq("sent", False).gte("time", twenty_four_hours_ago).order("time", desc=True).limit(50).execute()
             
-            logger.info(translate_template("+1234567890", "Found {count} total unsent notifications to process (last 24 hours)", supabase).format(
-                count=len(resp.data or [])))
+            logger.info(f"Found {len(resp.data or [])} total unsent notifications to process (last 24 hours)")
             
             if not resp.data:
                 return
@@ -611,8 +587,7 @@ def process_notifications(supabase):
                 if notification_id in processed_notification_ids:
                     last_processed = processed_notification_ids[notification_id]
                     if now - last_processed < 300:  # 5 minutes cooldown
-                        logger.debug(translate_template("+1234567890", "Skipping notification {notification_id} - processed recently", supabase).format(
-                            notification_id=notification_id))
+                        logger.debug(f"Skipping notification {notification_id} - processed recently")
                         continue
                 
                 # Add to processing batch
@@ -628,11 +603,11 @@ def process_notifications(supabase):
                 }).in_("id", processing_ids).eq("sent", False).execute()
                 
                 if not mark_result.data:
-                    logger.warning(translate_template("+1234567890", "No notifications were marked for processing (already being processed?)", supabase))
+                    logger.warning("No notifications were marked for processing (already being processed?)")
                     return
                     
             except Exception as e:
-                logger.error(translate_template("+1234567890", "Error marking notifications for processing: {error}", supabase).format(error=str(e)))
+                logger.error(f"Error marking notifications for processing: {e}")
                 return
             
             # Now process each marked notification
@@ -648,8 +623,7 @@ def process_notifications(supabase):
                 # Apply rate limiting per user
                 last_time = last_notification_time.get(wnum, 0)
                 if now - last_time < 300:  # 300 seconds = 5 minutes throttle per user
-                    logger.debug(translate_template("+1234567890", "Throttling notification for {wnum} - last sent {time_diff:.1f}s ago", supabase).format(
-                        wnum=wnum, time_diff=now - last_time))
+                    logger.debug(f"Throttling notification for {wnum} - last sent {now - last_time:.1f}s ago")
                     # Unmark this notification since we're skipping it
                     try:
                         supabase.table("c_notifications").update({
@@ -667,8 +641,7 @@ def process_notifications(supabase):
                 clinic_id = row.get('clinic_id')
                 
                 # LOG THE FIELDS TO SEE WHAT WE HAVE
-                logger.info(translate_template("+1234567890", "Processing notification {notification_id} for {wnum}, type: {reminder_type}, provider_cat: {provider_cat}, clinic_id: {clinic_id}", supabase).format(
-                    notification_id=notification_id, wnum=wnum, reminder_type=reminder_type, provider_cat=provider_cat, clinic_id=clinic_id))
+                logger.info(f"Processing notification {notification_id} for {wnum}, type: {reminder_type}, provider_cat: {provider_cat}, clinic_id: {clinic_id}")
                 
                 try:
                     # Use the proper strategy: interactive notification with header/footer/button first, template fallback
@@ -683,11 +656,9 @@ def process_notifications(supabase):
                     if success:
                         # Already marked as sent above, just update the timestamp
                         processed_notification_ids[notification_id] = now
-                        logger.info(translate_template("+1234567890", "Successfully sent notification {notification_id} for {wnum} with reminder_type: {reminder_type}", supabase).format(
-                            notification_id=notification_id, wnum=wnum, reminder_type=reminder_type))
+                        logger.info(f"Successfully sent notification {notification_id} for {wnum} with reminder_type: {reminder_type}")
                     else:
-                        logger.error(translate_template("+1234567890", "Failed to send notification {notification_id} to {wnum} (all methods failed)", supabase).format(
-                            notification_id=notification_id, wnum=wnum))
+                        logger.error(f"Failed to send notification {notification_id} to {wnum} (all methods failed)")
                         # Mark as not sent so it can be retried
                         try:
                             supabase.table("c_notifications").update({
@@ -699,8 +670,7 @@ def process_notifications(supabase):
                         processed_notification_ids[notification_id] = now
                         
                 except Exception as e:
-                    logger.error(translate_template("+1234567890", "Error sending notification {notification_id} to {wnum}: {error}", supabase).format(
-                        notification_id=notification_id, wnum=wnum, error=str(e)), exc_info=True)
+                    logger.error(f"Error sending notification {notification_id} to {wnum}: {e}", exc_info=True)
                     # Mark as not sent for retry
                     try:
                         supabase.table("c_notifications").update({
@@ -711,7 +681,7 @@ def process_notifications(supabase):
                     processed_notification_ids[notification_id] = now
 
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Error in process_notifications: {error}", supabase).format(error=str(e)), exc_info=True)
+        logger.error(f"Error in process_notifications: {e}", exc_info=True)
 # -------------------------
 # Update notification seen status
 # -------------------------
@@ -729,7 +699,7 @@ def update_notification_seen_status(whatsapp_number: str, supabase=None):
             # Try with + prefix
             user_resp = supabase.table("whatsapp_users").select("id").eq("whatsapp_number", f"+{whatsapp_number_norm}").single().execute()
             if not user_resp.data:
-                logger.warning(translate_template(whatsapp_number, "No user found for {whatsapp_number}", supabase).format(whatsapp_number=whatsapp_number))
+                logger.warning(f"No user found for {whatsapp_number}")
                 return False
         
         user_id = user_resp.data.get("id")
@@ -740,16 +710,14 @@ def update_notification_seen_status(whatsapp_number: str, supabase=None):
         }).eq("user_id", user_id).eq("sent", True).eq("seen", False).execute()
         
         if update_result.data:
-            logger.info(translate_template("+1234567890", "Updated seen status for {count} notifications for user {user_id}", supabase).format(
-                count=len(update_result.data), user_id=user_id))
+            logger.info(f"Updated seen status for {len(update_result.data)} notifications for user {user_id}")
             return True
         else:
-            logger.info(translate_template("+1234567890", "No notifications to mark as seen for user {user_id}", supabase).format(user_id=user_id))
+            logger.info(f"No notifications to mark as seen for user {user_id}")
             return False
             
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Error updating notification seen status for {whatsapp_number}: {error}", supabase).format(
-            whatsapp_number=whatsapp_number, error=str(e)), exc_info=True)
+        logger.error(f"Error updating notification seen status for {whatsapp_number}: {e}", exc_info=True)
         return False
 
 # -------------------------
@@ -777,7 +745,7 @@ def handle_notification_noted(whatsapp_number: str, supabase=None, skip_ui=False
             send_interactive_menu(whatsapp_number, supabase)
         return True
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Error handling notification noted: {error}", supabase).format(error=str(e)))
+        logger.error(f"Error handling notification noted: {e}")
         return False
 # -------------------------
 # Display and clear notifications
@@ -836,8 +804,7 @@ def display_and_clear_notifications(supabase, whatsapp_number: str):
                 elif isinstance(t, datetime):
                     time_obj = t
             except Exception as e:
-                logger.warning(translate_template("+1234567890", "Error parsing notification time {time}: {error}", supabase).format(
-                    time=t, error=str(e)))
+                logger.warning(f"Error parsing notification time {t}: {e}")
                 pass
 
             time_str = time_obj.astimezone(MALAYSIA_TZ).strftime("%Y-%m-%d %H:%M")
@@ -871,20 +838,16 @@ def display_and_clear_notifications(supabase, whatsapp_number: str):
             }).in_("id", notification_ids).execute()
             
             if update_result.data:
-                logger.info(translate_template("+1234567890", "Marked {count} notifications as prompted for user {user_id}", supabase).format(
-                    count=len(notification_ids), user_id=user_id))
+                logger.info(f"Marked {len(notification_ids)} notifications as prompted for user {user_id}")
             else:
-                logger.error(translate_template("+1234567890", "Failed to mark notifications as prompted for user {user_id}", supabase).format(
-                    user_id=user_id))
+                logger.error(f"Failed to mark notifications as prompted for user {user_id}")
 
         # Send confirmation message
-        send_free_notification(whatsapp_number, translate_template(whatsapp_number, "{count} notification(s) displayed!", supabase).format(
-            count=len(message_parts)), supabase)
+        send_free_notification(whatsapp_number, translate_template(whatsapp_number, f"{len(message_parts)} notification(s) displayed!", supabase), supabase)
         send_interactive_menu(whatsapp_number, supabase)
 
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Error in display_and_clear_notifications for {whatsapp_number}: {error}", supabase).format(
-            whatsapp_number=whatsapp_number, error=str(e)), exc_info=True)
+        logger.error(f"Error in display_and_clear_notifications for {whatsapp_number}: {e}", exc_info=True)
         send_free_notification(whatsapp_number, translate_template(whatsapp_number, "Error displaying notifications. Please try again.", supabase), supabase)
         send_interactive_menu(whatsapp_number, supabase)
 
@@ -901,8 +864,7 @@ def get_user_language(supabase, whatsapp_number: str) -> str:
             return response.data[0]["language"]
         return "en"
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Error fetching language for {whatsapp_number}: {error}", supabase).format(
-            whatsapp_number=whatsapp_number, error=str(e)))
+        logger.error(f"Error fetching language for {whatsapp_number}: {e}")
         return "en"
 
 # -------------------------
@@ -916,7 +878,7 @@ def check_and_send_reminder_notifications(supabase):
     now = datetime.now(MALAYSIA_TZ)
     TOLERANCE_SECONDS = 120  # 2 minute window
     
-    logger.info(translate_template("+1234567890", "Checking for time-based reminders...", supabase))
+    logger.info("Checking for time-based reminders...")
 
     # Check checkup bookings (weekc AND dayc REMINDERS)
     try:
@@ -924,8 +886,7 @@ def check_and_send_reminder_notifications(supabase):
             "id, user_id, date, time, details, reminder_duration, reminder_remark, repeated_visit_uuid, doctor_id"
         ).gte("date", now.date().isoformat()).execute()
         
-        logger.info(translate_template("+1234567890", "Fetched {count} bookings from c_s_checkup", supabase).format(
-            count=len(checkup_resp.data or [])))
+        logger.info(f"Fetched {len(checkup_resp.data or [])} bookings from c_s_checkup")
         
         for booking in checkup_resp.data or []:
             try:
@@ -988,13 +949,11 @@ def check_and_send_reminder_notifications(supabase):
                                     # Check if already sent
                                     for exist in existing.data:
                                         if exist.get("sent") == True:
-                                            logger.info(translate_template("+1234567890", "Reminder already sent for booking {booking_id}, type {reminder_type}. Skipping.", supabase).format(
-                                                booking_id=booking['id'], reminder_type=reminder_type))
+                                            logger.info(f"Reminder already sent for booking {booking['id']}, type {reminder_type}. Skipping.")
                                             continue
                                         else:
                                             # Update existing unsent reminder
-                                            logger.info(translate_template("+1234567890", "Updating existing unsent reminder for booking {booking_id}", supabase).format(
-                                                booking_id=booking['id']))
+                                            logger.info(f"Updating existing unsent reminder for booking {booking['id']}")
                                             supabase.table("c_notifications").update({
                                                 "notification": notification_msg,
                                                 "time": datetime.now(MALAYSIA_TZ).isoformat(),
@@ -1013,21 +972,19 @@ def check_and_send_reminder_notifications(supabase):
                                             provider_cat="clinic",
                                             clinic_id=clinic_id
                                         )
-                                        logger.info(translate_template("+1234567890", "Created {reminder_type} reminder for {whatsapp_number}", supabase).format(
-                                            reminder_type=reminder_type, whatsapp_number=whatsapp_number))
+                                        logger.info(f"Created {reminder_type} reminder for {whatsapp_number}")
                                 else:
                                     # Insert new reminder
-                                        insert_notification(
-                                            whatsapp_number=whatsapp_number,
-                                            case_id=case_id,
-                                            message=notification_msg,
-                                            user_id=booking["user_id"],
-                                            reminder_type=reminder_type,
-                                            provider_cat="clinic",
-                                            clinic_id=clinic_id
-                                        )
-                                        logger.info(translate_template("+1234567890", "Created {reminder_type} reminder for {whatsapp_number}", supabase).format(
-                                            reminder_type=reminder_type, whatsapp_number=whatsapp_number))
+                                    insert_notification(
+                                        whatsapp_number=whatsapp_number,
+                                        case_id=case_id,
+                                        message=notification_msg,
+                                        user_id=booking["user_id"],
+                                        reminder_type=reminder_type,
+                                        provider_cat="clinic",
+                                        clinic_id=clinic_id
+                                    )
+                                    logger.info(f"Created {reminder_type} reminder for {whatsapp_number}")
                         
                         break  # Only create one reminder per booking
 
@@ -1061,16 +1018,14 @@ def check_and_send_reminder_notifications(supabase):
                                     provider_cat="clinic",
                                     clinic_id=clinic_id
                                 )
-                                logger.info(translate_template("+1234567890", "Created customc reminder for {whatsapp_number}", supabase).format(
-                                    whatsapp_number=whatsapp_number))
+                                logger.info(f"Created customc reminder for {whatsapp_number}")
 
             except Exception as e:
-                logger.error(translate_template("+1234567890", "Error processing checkup booking {booking_id}: {error}", supabase).format(
-                    booking_id=booking.get('id'), error=str(e)), exc_info=True)
+                logger.error(f"Error processing checkup booking {booking.get('id')}: {e}", exc_info=True)
                 continue
                 
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Failed to fetch c_s_checkup: {error}", supabase).format(error=str(e)), exc_info=True)
+        logger.error(f"Failed to fetch c_s_checkup: {e}", exc_info=True)
 
     # Check consultation bookings (weekc AND dayc REMINDERS)
     try:
@@ -1078,8 +1033,7 @@ def check_and_send_reminder_notifications(supabase):
             "id, user_id, date, time, details, reminder_duration, reminder_remark, repeated_visit_uuid, doctor_id"
         ).gte("date", now.date().isoformat()).execute()
         
-        logger.info(translate_template("+1234567890", "Fetched {count} bookings from c_s_consultation", supabase).format(
-            count=len(consultation_resp.data or [])))
+        logger.info(f"Fetched {len(consultation_resp.data or [])} bookings from c_s_consultation")
         
         for booking in consultation_resp.data or []:
             try:
@@ -1142,13 +1096,11 @@ def check_and_send_reminder_notifications(supabase):
                                     # Check if already sent
                                     for exist in existing.data:
                                         if exist.get("sent") == True:
-                                            logger.info(translate_template("+1234567890", "Reminder already sent for booking {booking_id}, type {reminder_type}. Skipping.", supabase).format(
-                                                booking_id=booking['id'], reminder_type=reminder_type))
+                                            logger.info(f"Reminder already sent for booking {booking['id']}, type {reminder_type}. Skipping.")
                                             continue
                                         else:
                                             # Update existing unsent reminder
-                                            logger.info(translate_template("+1234567890", "Updating existing unsent reminder for booking {booking_id}", supabase).format(
-                                                booking_id=booking['id']))
+                                            logger.info(f"Updating existing unsent reminder for booking {booking['id']}")
                                             supabase.table("c_notifications").update({
                                                 "notification": notification_msg,
                                                 "time": datetime.now(MALAYSIA_TZ).isoformat(),
@@ -1167,8 +1119,7 @@ def check_and_send_reminder_notifications(supabase):
                                             provider_cat="clinic",
                                             clinic_id=clinic_id
                                         )
-                                        logger.info(translate_template("+1234567890", "Created {reminder_type} reminder for {whatsapp_number}", supabase).format(
-                                            reminder_type=reminder_type, whatsapp_number=whatsapp_number))
+                                        logger.info(f"Created {reminder_type} reminder for {whatsapp_number}")
                                 else:
                                     # Insert new reminder
                                         insert_notification(
@@ -1180,8 +1131,7 @@ def check_and_send_reminder_notifications(supabase):
                                             provider_cat="clinic",
                                             clinic_id=clinic_id
                                         )
-                                        logger.info(translate_template("+1234567890", "Created {reminder_type} reminder for {whatsapp_number}", supabase).format(
-                                            reminder_type=reminder_type, whatsapp_number=whatsapp_number))
+                                        logger.info(f"Created {reminder_type} reminder for {whatsapp_number}")
                         
                         break  # Only create one reminder per booking
 
@@ -1215,16 +1165,14 @@ def check_and_send_reminder_notifications(supabase):
                                     provider_cat="clinic",
                                     clinic_id=clinic_id
                                 )
-                                logger.info(translate_template("+1234567890", "Created customc reminder for {whatsapp_number}", supabase).format(
-                                    whatsapp_number=whatsapp_number))
+                                logger.info(f"Created customc reminder for {whatsapp_number}")
 
             except Exception as e:
-                logger.error(translate_template("+1234567890", "Error processing consultation booking {booking_id}: {error}", supabase).format(
-                    booking_id=booking.get('id'), error=str(e)), exc_info=True)
+                logger.error(f"Error processing consultation booking {booking.get('id')}: {e}", exc_info=True)
                 continue
                 
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Failed to fetch c_s_consultation: {error}", supabase).format(error=str(e)), exc_info=True)
+        logger.error(f"Failed to fetch c_s_consultation: {e}", exc_info=True)
 
     # Check vaccination bookings (weekc AND dayc REMINDERS)
     try:
@@ -1232,8 +1180,7 @@ def check_and_send_reminder_notifications(supabase):
             "id, user_id, date, time, vaccine_type, reminder_duration, reminder_remark, repeated_visit_uuid, doctor_id"
         ).gte("date", now.date().isoformat()).execute()
         
-        logger.info(translate_template("+1234567890", "Fetched {count} bookings from c_s_vaccination", supabase).format(
-            count=len(vaccination_resp.data or [])))
+        logger.info(f"Fetched {len(vaccination_resp.data or [])} bookings from c_s_vaccination")
         
         for booking in vaccination_resp.data or []:
             try:
@@ -1296,13 +1243,11 @@ def check_and_send_reminder_notifications(supabase):
                                     # Check if already sent
                                     for exist in existing.data:
                                         if exist.get("sent") == True:
-                                            logger.info(translate_template("+1234567890", "Reminder already sent for booking {booking_id}, type {reminder_type}. Skipping.", supabase).format(
-                                                booking_id=booking['id'], reminder_type=reminder_type))
+                                            logger.info(f"Reminder already sent for booking {booking['id']}, type {reminder_type}. Skipping.")
                                             continue
                                         else:
                                             # Update existing unsent reminder
-                                            logger.info(translate_template("+1234567890", "Updating existing unsent reminder for booking {booking_id}", supabase).format(
-                                                booking_id=booking['id']))
+                                            logger.info(f"Updating existing unsent reminder for booking {booking['id']}")
                                             supabase.table("c_notifications").update({
                                                 "notification": notification_msg,
                                                 "time": datetime.now(MALAYSIA_TZ).isoformat(),
@@ -1321,8 +1266,7 @@ def check_and_send_reminder_notifications(supabase):
                                             provider_cat="clinic",
                                             clinic_id=clinic_id
                                         )
-                                        logger.info(translate_template("+1234567890", "Created {reminder_type} reminder for {whatsapp_number}", supabase).format(
-                                            reminder_type=reminder_type, whatsapp_number=whatsapp_number))
+                                        logger.info(f"Created {reminder_type} reminder for {whatsapp_number}")
                                 else:
                                     # Insert new reminder
                                         insert_notification(
@@ -1334,8 +1278,7 @@ def check_and_send_reminder_notifications(supabase):
                                             provider_cat="clinic",
                                             clinic_id=clinic_id
                                         )
-                                        logger.info(translate_template("+1234567890", "Created {reminder_type} reminder for {whatsapp_number}", supabase).format(
-                                            reminder_type=reminder_type, whatsapp_number=whatsapp_number))
+                                        logger.info(f"Created {reminder_type} reminder for {whatsapp_number}")
                         
                         break  # Only create one reminder per booking
 
@@ -1369,16 +1312,14 @@ def check_and_send_reminder_notifications(supabase):
                                     provider_cat="clinic",
                                     clinic_id=clinic_id
                                 )
-                                logger.info(translate_template("+1234567890", "Created customc reminder for {whatsapp_number}", supabase).format(
-                                    whatsapp_number=whatsapp_number))
+                                logger.info(f"Created customc reminder for {whatsapp_number}")
 
             except Exception as e:
-                logger.error(translate_template("+1234567890", "Error processing vaccination booking {booking_id}: {error}", supabase).format(
-                    booking_id=booking.get('id'), error=str(e)), exc_info=True)
+                logger.error(f"Error processing vaccination booking {booking.get('id')}: {e}", exc_info=True)
                 continue
                 
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Failed to fetch c_s_vaccination: {error}", supabase).format(error=str(e)), exc_info=True)
+        logger.error(f"Failed to fetch c_s_vaccination: {e}", exc_info=True)
 
     # Check TCM bookings (weekc AND dayc REMINDERS)
     try:
@@ -1386,7 +1327,7 @@ def check_and_send_reminder_notifications(supabase):
             "id, user_id, original_date, original_time, new_date, new_time, booking_type, details, reminder_duration, reminder_remark, repeated_visit_uuid, status, doctor_id"
         ).eq("status", "confirmed").execute()
         
-        logger.info(translate_template("+1234567890", "Fetched {count} TCM bookings", supabase).format(count=len(tcm_resp.data or [])))
+        logger.info(f"Fetched {len(tcm_resp.data or [])} TCM bookings")
         
         for booking in tcm_resp.data or []:
             try:
@@ -1419,7 +1360,7 @@ def check_and_send_reminder_notifications(supabase):
                         if doctor_resp.data and doctor_resp.data[0].get("clinic_id"):
                             clinic_id = doctor_resp.data[0]["clinic_id"]
                 except Exception as clinic_err:
-                    logger.error(translate_template("+1234567890", "Error getting clinic_id for TCM reminder: {error}", supabase).format(error=str(clinic_err)))
+                    logger.error(f"Error getting clinic_id for TCM reminder: {clinic_err}")
 
                 # Check standard time-based reminders (weekc and dayc)
                 time_reminders = [
@@ -1459,13 +1400,11 @@ def check_and_send_reminder_notifications(supabase):
                                     # Check if already sent
                                     for exist in existing.data:
                                         if exist.get("sent") == True:
-                                            logger.info(translate_template("+1234567890", "TCM reminder already sent for booking {booking_id}, type {reminder_type}. Skipping.", supabase).format(
-                                                booking_id=booking['id'], reminder_type=reminder_type))
+                                            logger.info(f"TCM reminder already sent for booking {booking['id']}, type {reminder_type}. Skipping.")
                                             continue
                                         else:
                                             # Update existing unsent reminder
-                                            logger.info(translate_template("+1234567890", "Updating existing unsent TCM reminder for booking {booking_id}", supabase).format(
-                                                booking_id=booking['id']))
+                                            logger.info(f"Updating existing unsent TCM reminder for booking {booking['id']}")
                                             supabase.table("c_notifications").update({
                                                 "notification": notification_msg,
                                                 "time": datetime.now(MALAYSIA_TZ).isoformat(),
@@ -1484,8 +1423,7 @@ def check_and_send_reminder_notifications(supabase):
                                             provider_cat="tcm",
                                             clinic_id=clinic_id
                                         )
-                                        logger.info(translate_template("+1234567890", "Created TCM {reminder_type} reminder for {whatsapp_number}", supabase).format(
-                                            reminder_type=reminder_type, whatsapp_number=whatsapp_number))
+                                        logger.info(f"Created TCM {reminder_type} reminder for {whatsapp_number}")
                                 else:
                                     # Insert new reminder
                                         insert_notification(
@@ -1497,8 +1435,7 @@ def check_and_send_reminder_notifications(supabase):
                                             provider_cat="tcm",
                                             clinic_id=clinic_id
                                         )
-                                        logger.info(translate_template("+1234567890", "Created TCM {reminder_type} reminder for {whatsapp_number}", supabase).format(
-                                            reminder_type=reminder_type, whatsapp_number=whatsapp_number))
+                                        logger.info(f"Created TCM {reminder_type} reminder for {whatsapp_number}")
                         
                         break  # Only create one reminder per booking
 
@@ -1532,16 +1469,14 @@ def check_and_send_reminder_notifications(supabase):
                                     provider_cat="tcm",
                                     clinic_id=clinic_id
                                 )
-                                logger.info(translate_template("+1234567890", "Created TCM customc reminder for {whatsapp_number}", supabase).format(
-                                    whatsapp_number=whatsapp_number))
+                                logger.info(f"Created TCM customc reminder for {whatsapp_number}")
 
             except Exception as e:
-                logger.error(translate_template("+1234567890", "Error processing TCM booking {booking_id}: {error}", supabase).format(
-                    booking_id=booking.get('id'), error=str(e)), exc_info=True)
+                logger.error(f"Error processing TCM booking {booking.get('id')}: {e}", exc_info=True)
                 continue
                 
     except Exception as e:
-        logger.error(translate_template("+1234567890", "Failed to fetch tcm_s_bookings: {error}", supabase).format(error=str(e)), exc_info=True)
+        logger.error(f"Failed to fetch tcm_s_bookings: {e}", exc_info=True)
 
 # -------------------------
 # NEW: Check ambulance bookings for a_day reminders
@@ -1554,7 +1489,7 @@ def check_and_send_ambulance_reminders(supabase):
     now = datetime.now(MALAYSIA_TZ)
     TOLERANCE_SECONDS = 120  # 2 minute window
     
-    logger.info(translate_template("+1234567890", "Checking for ambulance reminders (a_day)...", supabase))
+    logger.info("Checking for ambulance reminders (a_day)...")
 
     # List of ambulance tables to check
     ambulance_tables = [
@@ -1571,8 +1506,7 @@ def check_and_send_ambulance_reminders(supabase):
                 "id, whatsapp_number, patient_name, scheduled_date, scheduled_time, provider_id"
             ).gte("scheduled_date", now.date().isoformat()).execute()
             
-            logger.info(translate_template("+1234567890", "Fetched {count} bookings from {table_name}", supabase).format(
-                count=len(resp.data or []), table_name=table_name))
+            logger.info(f"Fetched {len(resp.data or [])} bookings from {table_name}")
             
             for booking in resp.data or []:
                 try:
@@ -1612,13 +1546,13 @@ def check_and_send_ambulance_reminders(supabase):
                         if existing.data:
                             for exist in existing.data:
                                 if exist.get("sent") == True:
-                                    logger.info(translate_template("+1234567890", "Ambulance a_day reminder already sent for {case_id}. Skipping.", supabase).format(case_id=case_id))
+                                    logger.info(f"Ambulance a_day reminder already sent for {case_id}. Skipping.")
                                     continue
                                 else:
                                     # Update existing unsent reminder
                                     patient_name = booking.get("patient_name", "Patient")
                                     scheduled_str = scheduled_dt.strftime("%Y-%m-%d %H:%M")
-                                    notification_msg = gt_tt(whatsapp_number, f"Reminder: Your {service_type} for {patient_name} is scheduled tomorrow at {scheduled_str}.", supabase)
+                                    notification_msg = f"Reminder: Your {service_type} for {patient_name} is scheduled tomorrow at {scheduled_str}."
                                     
                                     supabase.table("c_notifications").update({
                                         "notification": notification_msg,
@@ -1626,13 +1560,13 @@ def check_and_send_ambulance_reminders(supabase):
                                         "provider_cat": "ambulance",
                                         "clinic_id": None
                                     }).eq("id", exist["id"]).execute()
-                                    logger.info(translate_template("+1234567890", "Updated a_day reminder for ambulance booking {case_id}", supabase).format(case_id=case_id))
+                                    logger.info(f"Updated a_day reminder for ambulance booking {case_id}")
                                     break
                             else:
                                 # Insert new reminder
                                 patient_name = booking.get("patient_name", "Patient")
                                 scheduled_str = scheduled_dt.strftime("%Y-%m-%d %H:%M")
-                                notification_msg = gt_tt(whatsapp_number, f"Reminder: Your {service_type} for {patient_name} is scheduled tomorrow at {scheduled_str}.", supabase)
+                                notification_msg = f"Reminder: Your {service_type} for {patient_name} is scheduled tomorrow at {scheduled_str}."
                                 
                                 insert_notification(
                                     whatsapp_number=whatsapp_number,
@@ -1643,13 +1577,12 @@ def check_and_send_ambulance_reminders(supabase):
                                     provider_cat="ambulance",
                                     clinic_id=None
                                 )
-                                logger.info(translate_template("+1234567890", "Created a_day reminder for {whatsapp_number}, ambulance booking {case_id}", supabase).format(
-                                    whatsapp_number=whatsapp_number, case_id=case_id))
+                                logger.info(f"Created a_day reminder for {whatsapp_number}, ambulance booking {case_id}")
                         else:
                             # Insert new reminder
                             patient_name = booking.get("patient_name", "Patient")
                             scheduled_str = scheduled_dt.strftime("%Y-%m-%d %H:%M")
-                            notification_msg = gt_tt(whatsapp_number, f"Reminder: Your {service_type} for {patient_name} is scheduled tomorrow at {scheduled_str}.", supabase)
+                            notification_msg = f"Reminder: Your {service_type} for {patient_name} is scheduled tomorrow at {scheduled_str}."
                             
                             insert_notification(
                                 whatsapp_number=whatsapp_number,
@@ -1660,15 +1593,12 @@ def check_and_send_ambulance_reminders(supabase):
                                 provider_cat="ambulance",
                                 clinic_id=None
                             )
-                            logger.info(translate_template("+1234567890", "Created a_day reminder for {whatsapp_number}, ambulance booking {case_id}", supabase).format(
-                                whatsapp_number=whatsapp_number, case_id=case_id))
+                            logger.info(f"Created a_day reminder for {whatsapp_number}, ambulance booking {case_id}")
                             
                 except Exception as e:
-                    logger.error(translate_template("+1234567890", "Error processing ambulance booking {booking_id} from {table_name}: {error}", supabase).format(
-                        booking_id=booking.get('id'), table_name=table_name, error=str(e)), exc_info=True)
+                    logger.error(f"Error processing ambulance booking {booking.get('id')} from {table_name}: {e}", exc_info=True)
                     continue
                     
         except Exception as e:
-            logger.error(translate_template("+1234567890", "Failed to fetch from {table_name}: {error}", supabase).format(
-                table_name=table_name, error=str(e)), exc_info=True)
+            logger.error(f"Failed to fetch from {table_name}: {e}", exc_info=True)
             continue

@@ -144,6 +144,10 @@ def handle_notification_noted_directly(whatsapp_number: str, supabase) -> bool:
         logger.error(f"Error handling notification noted directly: {e}")
         return False
 
+
+
+# webhooksplit.py - UPDATED webhook handler
+
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
     if request.method == "GET":
@@ -261,17 +265,44 @@ def webhook():
                                 logger.error(f"Failed to handle follow-up button response")
                                 return "Failed to handle follow-up", 500
                         
-                        # Check if it's a notification_noted button
-                        elif button_id == "notification_noted":
-                            logger.info(f"Notification noted button detected: {button_id} from {whatsapp_number}")
+                        # Handle Dynamic Navigation Buttons (Groups A, B, and C)
+                        elif button_id in ["notification_noted", "nav_notifications", "nav_view_booking", "nav_profile"]:
+                            logger.info(f"Navigation button detected: {button_id} from {whatsapp_number}")
                             
-                            # Handle it directly without going through main.py
-                            if handle_notification_noted_directly(whatsapp_number, supabase):
-                                logger.info(f"✅ Notification noted handled directly")
-                                return "Notification noted button processed", 200
-                            else:
-                                logger.error(f"Failed to handle notification noted")
-                                return "Failed to handle notification noted", 500
+                            from notification import handle_notification_noted, display_and_clear_notifications
+                            from view_booking import handle_view_upcoming_booking
+                            from utils import get_user_id
+                            import main # Access the brain's memory
+
+                            # 1. Silent DB Update (Marks as noted, but NO "Thank You" message)
+                            handle_notification_noted(whatsapp_number, supabase, skip_ui=True)
+
+                            # 2. Prime the state in main.py to prevent "Invalid Selection"
+                            if whatsapp_number not in main.user_data:
+                                main.user_data[whatsapp_number] = {"state": "IDLE", "processing": False, "module": None}
+
+                            # 3. Direct Routing & State Setting
+                            if button_id == "nav_notifications":
+                                main.user_data[whatsapp_number].update({"module": "notification", "state": "VIEWING"})
+                                display_and_clear_notifications(supabase, whatsapp_number)
+                                
+                            elif button_id == "nav_view_booking":
+                                u_id = get_user_id(supabase, whatsapp_number)
+                                # Tell main.py we are now in the view_booking module
+                                main.user_data[whatsapp_number].update({"module": "view_booking", "state": "VIEW_BOOKING_SUBMENU"})
+                                handle_view_upcoming_booking(whatsapp_number, u_id, supabase, main.user_data)
+                                
+                            elif button_id == "nav_profile":
+                                from individual import handle_individual_start
+                                u_id = get_user_id(supabase, whatsapp_number)
+                                main.user_data[whatsapp_number].update({"module": "individual", "state": "IDLE"})
+                                handle_individual_start(whatsapp_number, u_id, supabase, main.user_data)
+                            
+                            elif button_id == "notification_noted":
+                                # The only one that gets the "Thank you" and Main Menu
+                                handle_notification_noted(whatsapp_number, supabase, skip_ui=False)
+                            
+                            return "Navigation processed", 200
                 
                 # Handle text messages (could be template responses)
                 elif message_type == "text":
