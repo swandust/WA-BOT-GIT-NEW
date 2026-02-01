@@ -117,7 +117,7 @@ def show_profile_management_menu(whatsapp_number, user_id, supabase, user_data, 
             patient_name = patient["patient_name"]
             
             title = f"{idx}. {patient_name}"
-            display_title = truncate_text(gt_t_tt(whatsapp_number, title, supabase), MAX_TITLE_LENGTH)
+            display_title = truncate_text(title, MAX_TITLE_LENGTH) 
             
             rows.append({
                 "id": f"select_patient_{patient['id']}",
@@ -363,7 +363,7 @@ def show_patient_main_options(whatsapp_number, user_id, supabase, user_data):
         ]
         
         # Build header text
-        header_text = translate_template(whatsapp_number, f"Options for {patient_name}", supabase)
+        header_text = translate_template(whatsapp_number, "Options for {}", supabase).format(patient_name)
         
         # Send interactive list
         content = {

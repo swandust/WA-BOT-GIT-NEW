@@ -528,6 +528,9 @@ def _handle_location_message(whatsapp_number, user_id, supabase, user_data, mess
             # Handle emergency location if needed
             from ambulance_emergency import handle_emergency_response
             return handle_emergency_response(whatsapp_number, user_id, supabase, user_data, message)
+        elif module == "tcm_service":
+            # Route location messages to TCM service module
+            return handle_tcm_service(whatsapp_number, user_id, supabase, user_data, message)
         else:
             # If location is not expected in this context, send a message
             send_whatsapp_message(
@@ -570,6 +573,9 @@ def _handle_media_message(whatsapp_number, user_id, supabase, user_data, message
             # Handle emergency media if needed
             from ambulance_emergency import handle_emergency_response
             return handle_emergency_response(whatsapp_number, user_id, supabase, user_data, message)
+        elif module == "tcm_service":
+            # Route media messages to TCM service module
+            return handle_tcm_service(whatsapp_number, user_id, supabase, user_data, message)
         else:
             # If media is not expected in this context, send a message
             send_whatsapp_message(
@@ -2007,3 +2013,4 @@ def send_booking_submenu(to: str, supabase=None) -> bool:
         }
     }
     return send_whatsapp_message(to, "interactive", content, supabase)
+

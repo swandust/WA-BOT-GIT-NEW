@@ -2711,28 +2711,27 @@ def handle_time_input(whatsapp_number, user_id, supabase, user_data, module_name
         if is_available:
             # Time is available, store it and proceed to confirmation
             user_data[whatsapp_number]["time_slot"] = rounded_time
-           
-            # Ask for confirmation
-            send_whatsapp_message(
-                whatsapp_number,
-                "interactive",
-                {
-                    "interactive": {
-                        "type": "button",
-                        "body": {"text": translate_template(
-                            whatsapp_number,
-                            f"Great! {formatted_display_time} is available. Is this the time you want?",
-                            supabase
-                        )},
-                        "action": {
-                            "buttons": [
-                                {"type": "reply", "reply": {"id": "confirm_time", "title": translate_template(whatsapp_number, "Yes", supabase)}},
-                                {"type": "reply", "reply": {"id": "find_another_time", "title": translate_template(whatsapp_number, "Find Another", supabase)}}
-                            ]
-                        }
+            
+            # 1. Get the translated shell from the dictionary (Static Key)
+            shell = translate_template(whatsapp_number, "Great! {} is available. Is this the time you want?", supabase)
+            
+            # 2. Format it with the variable (Dynamic Data)
+            final_text = shell.format(formatted_display_time)
+            
+            # 3. Build the payload
+            payload = {
+                "interactive": {
+                    "type": "button",
+                    "body": {"text": final_text},
+                    "action": {
+                        "buttons": [
+                            {"type": "reply", "reply": {"id": "confirm_time", "title": translate_template(whatsapp_number, "Yes", supabase)}},
+                            {"type": "reply", "reply": {"id": "find_another_time", "title": translate_template(whatsapp_number, "Find Another", supabase)}}
+                        ]
                     }
                 }
-            )
+            }
+            send_whatsapp_message(whatsapp_number, "interactive", payload, supabase)
             user_data[whatsapp_number]["state"] = "CONFIRM_TIME"
            
         else:
